@@ -13,7 +13,7 @@ services:
     environment:
       - NODE_ENV=production
       - DB_HOST=db
-      - DB_PORT=5432
+      - DB_PORT=5433
       - DB_USERNAME=${DB_USERNAME:-notafacil_db_user}
       - DB_PASSWORD=${DB_PASSWORD:-notafacil_password}
       - DB_NAME=${DB_NAME:-notafacil_prod}
@@ -39,7 +39,7 @@ services:
       - "traefik.http.services.notafacil.loadbalancer.server.port=3000"
 
   db:
-    image: postgres:15-alpine
+    image: postgres:17-alpine
     container_name: notafacil_db
     restart: unless-stopped
     environment:
@@ -47,7 +47,7 @@ services:
       - POSTGRES_PASSWORD=${DB_PASSWORD:-notafacil_password}
       - POSTGRES_DB=${DB_NAME:-notafacil_prod}
     ports:
-      - "5432:5432"
+      - "5433:5433"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:

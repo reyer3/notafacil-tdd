@@ -26,7 +26,7 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: notafacil_test
         ports:
-          - 5432:5432
+          - 5433:5433
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -49,9 +49,9 @@ jobs:
       - name: Create .env file for testing
         run: |
           echo "# Configuración de base de datos" > .env
-          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/notafacil_test?sslmode=disable" >> .env
+          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5433/notafacil_test?sslmode=disable" >> .env
           echo "DB_HOST=localhost" >> .env
-          echo "DB_PORT=5432" >> .env
+          echo "DB_PORT=5433" >> .env
           echo "DB_USERNAME=postgres" >> .env
           echo "DB_PASSWORD=postgres" >> .env
           echo "DB_NAME=notafacil_test" >> .env
