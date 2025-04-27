@@ -1,6 +1,6 @@
 import { Repository } from 'typeorm';
-import { Note } from '../../../domain/entities/Note';
-import { NoteRepository } from '../../../domain/repositories/NoteRepository';
+import { Note } from '@domain/entities/Note';
+import { NoteRepository } from '@domain/repositories/NoteRepository';
 import { NoteModel } from '../models/NoteModel';
 import { TagModel } from '../models/TagModel';
 

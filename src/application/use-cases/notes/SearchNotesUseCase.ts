@@ -1,5 +1,5 @@
-import { Note } from '../../../domain/entities/Note';
-import { NoteRepository } from '../../../domain/repositories/NoteRepository';
+import { Note } from '@domain/entities/Note';
+import { NoteRepository } from '@domain/repositories/NoteRepository';
 
 export enum SearchScope {
   TITLE_ONLY = 'title_only',

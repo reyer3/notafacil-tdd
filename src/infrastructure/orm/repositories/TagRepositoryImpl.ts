@@ -1,6 +1,6 @@
 import { Repository } from 'typeorm';
-import { Tag } from '../../../domain/entities/Tag';
-import { TagRepository } from '../../../domain/repositories/TagRepository';
+import { Tag } from '@domain/entities/Tag';
+import { TagRepository } from '@domain/repositories/TagRepository';
 import { TagModel } from '../models/TagModel';
 
 export class TagRepositoryImpl implements TagRepository {

@@ -1,41 +1,68 @@
 import express, { Request, Response, NextFunction } from 'express';
-import { initializeDatabase } from './orm/config/database';
-import { NoteModel } from './orm/models/NoteModel';
-import { TagModel } from './orm/models/TagModel';
-import { NoteRepositoryImpl } from './orm/repositories/NoteRepositoryImpl';
-import { TagRepositoryImpl } from './orm/repositories/TagRepositoryImpl';
-import { CreateNoteUseCase } from '../application/use-cases/notes/CreateNoteUseCase';
-import { SearchNotesUseCase, SearchScope } from '../application/use-cases/notes/SearchNotesUseCase';
+import { DataSource, Repository } from 'typeorm';
+import { initializeDatabase } from '@infrastructure/orm/config/database';
+import { NoteModel } from '@infrastructure/orm/models/NoteModel';
+import { TagModel } from '@infrastructure/orm/models/TagModel';
+import { NoteRepositoryImpl } from '@infrastructure/orm/repositories/NoteRepositoryImpl';
+import { TagRepositoryImpl } from '@infrastructure/orm/repositories/TagRepositoryImpl';
+import { SearchNotesUseCase, SearchScope } from '@application/use-cases/notes/SearchNotesUseCase';
+import { CreateNoteUseCase } from '@application/use-cases/notes/CreateNoteUseCase';
 
-// Inicializar Express
-const app = express();
-app.use(express.json());
+// Instancia de Express
+export const app = express();
 
-// Inicializar base de datos
+// Variables para almacenar las instancias
+let dataSource: DataSource;
 let noteRepository: NoteRepositoryImpl;
 let tagRepository: TagRepositoryImpl;
+let searchNotesUseCase: SearchNotesUseCase;
+let createNoteUseCase: CreateNoteUseCase;
 
-async function startServer() {
+// Middlewares
+app.use(express.json());
+
+// Iniciar servidor
+export const startServer = async (port = 0): Promise<number> => {
   try {
-    // Conectar a la base de datos
-    const dataSource = await initializeDatabase();
-    
-    // Crear repositorios
-    noteRepository = new NoteRepositoryImpl(dataSource.getRepository(NoteModel));
-    tagRepository = new TagRepositoryImpl(dataSource.getRepository(TagModel));
+    // Inicializar la base de datos
+    dataSource = await initializeDatabase();
 
-    // Definir puerto
-    const port = process.env.PORT || 3000;
-    
-    // Iniciar servidor
-    app.listen(port, () => {
-      console.log(`Servidor iniciado en puerto ${port}`);
+    // Configurar repositorios
+    const noteModelRepo: Repository<NoteModel> = dataSource.getRepository(NoteModel);
+    const tagModelRepo: Repository<TagModel> = dataSource.getRepository(TagModel);
+    noteRepository = new NoteRepositoryImpl(noteModelRepo);
+    tagRepository = new TagRepositoryImpl(tagModelRepo);
+
+    // Configurar casos de uso
+    searchNotesUseCase = new SearchNotesUseCase(noteRepository);
+    createNoteUseCase = new CreateNoteUseCase(noteRepository);
+
+    // Iniciar el servidor en un puerto disponible
+    return new Promise((resolve) => {
+      const server = app.listen(port, () => {
+        const actualPort = server.address()
+            ? typeof server.address() === 'string'
+                ? parseInt(server.address() as string)
+                : (server.address() as any).port
+            : port;
+
+        console.log(`Servidor iniciado en http://localhost:${actualPort}`);
+        resolve(actualPort);
+      });
+
+      // Manejar cierre del servidor
+      process.on('SIGINT', async () => {
+        await dataSource.destroy();
+        server.close();
+        console.log('Servidor detenido');
+        process.exit(0);
+      });
     });
   } catch (error) {
     console.error('Error al iniciar el servidor:', error);
     process.exit(1);
   }
-}
+};
 
 // Middleware para manejar errores
 const errorHandler = (err: Error, req: Request, res: Response, next: NextFunction) => {
@@ -45,56 +72,68 @@ const errorHandler = (err: Error, req: Request, res: Response, next: NextFunctio
   });
 };
 
-// Rutas de la API
+// Endpoint de salud
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
+  res.status(200).json({ status: 'ok' });
 });
 
-// Rutas para notas
+// Endpoint para buscar notas
 app.get('/api/notes', async (req, res, next) => {
   try {
     const searchText = req.query.search as string || '';
-    const tagIds = req.query.tags ? (req.query.tags as string).split(',') : [];
-    
-    // Determinar el scope de búsqueda basado en el parámetro de consulta
-    let searchScope = SearchScope.TITLE_ONLY; // Por defecto, buscar solo en el título
-    if (req.query.scope) {
-      const scope = req.query.scope as string;
-      if (scope === 'content') {
-        searchScope = SearchScope.CONTENT_ONLY;
-      } else if (scope === 'both') {
-        searchScope = SearchScope.BOTH;
-      }
+    const tagsParam = req.query.tags as string || '';
+    const scopeParam = req.query.scope as string || 'title';
+
+    // Convertir tags a array
+    const tagIds = tagsParam ? tagsParam.split(',') : [];
+
+    // Determinar el scope de búsqueda
+    let searchScope = SearchScope.TITLE_ONLY;
+    if (scopeParam === 'content') {
+      searchScope = SearchScope.CONTENT_ONLY;
+    } else if (scopeParam === 'both') {
+      searchScope = SearchScope.BOTH;
     }
-    
-    const searchUseCase = new SearchNotesUseCase(noteRepository);
-    const notes = await searchUseCase.execute({ searchText, tagIds, searchScope });
-    
-    res.json(notes.map(note => note.toJSON()));
+
+    // Ejecutar caso de uso
+    const notes = await searchNotesUseCase.execute({
+      searchText,
+      tagIds,
+      searchScope
+    });
+
+    res.status(200).json(notes);
   } catch (error) {
     next(error);
   }
 });
 
+// Endpoint para crear una nota
 app.post('/api/notes', async (req, res, next) => {
   try {
     const { title, content, tagIds } = req.body;
-    
-    const createUseCase = new CreateNoteUseCase(noteRepository);
-    const note = await createUseCase.execute({ title, content, tagIds });
-    
-    res.status(201).json(note.toJSON());
+
+    // Ejecutar caso de uso
+    const newNote = await createNoteUseCase.execute({
+      title,
+      content,
+      tagIds: tagIds || []
+    });
+
+    res.status(201).json(newNote);
   } catch (error) {
     next(error);
   }
 });
 
-// Aplicar middleware de errores
+// Registrar middleware de errores
 app.use(errorHandler);
 
-// Iniciar servidor si no estamos en modo de prueba
-if (process.env.NODE_ENV !== 'test') {
-  startServer();
+// Si se ejecuta directamente este archivo, iniciar el servidor
+if (require.main === module) {
+  const port = parseInt(process.env.PORT || '3000');
+  startServer(port).catch(err => {
+    console.error('Error al iniciar la aplicación:', err);
+    process.exit(1);
+  });
 }
-
-export { app, startServer };

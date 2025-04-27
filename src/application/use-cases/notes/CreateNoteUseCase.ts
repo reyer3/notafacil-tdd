@@ -1,5 +1,5 @@
-import { Note } from '../../../domain/entities/Note';
-import { NoteRepository } from '../../../domain/repositories/NoteRepository';
+import { Note } from '@domain/entities/Note';
+import { NoteRepository } from '@domain/repositories/NoteRepository';
 
 export interface CreateNoteInput {
   title: string;
