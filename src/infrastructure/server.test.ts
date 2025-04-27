@@ -25,6 +25,13 @@ jest.mock('./orm/config/database', () => {
   };
 });
 
+// Definir tipo para el mock de notas
+interface MockNote {
+  title: string;
+  content: string;
+  tags: string[];
+}
+
 // Mock para las notas en el repositorio
 const mockNotes = [
   new Note('Nota 1', 'Contenido 1', '1', new Date(), new Date(), ['tag1']),
@@ -36,23 +43,23 @@ const setupMockRepository = () => {
   const dataSource = {
     getRepository: jest.fn().mockReturnValue({
       findAll: jest.fn().mockResolvedValue(mockNotes),
-      findByTitle: jest.fn().mockImplementation((title) => {
+      findByTitle: jest.fn().mockImplementation((title: string) => {
         return Promise.resolve(
           mockNotes.filter(note => note.title.includes(title))
         );
       }),
-      findById: jest.fn().mockImplementation((id) => {
+      findById: jest.fn().mockImplementation((id: string) => {
         return Promise.resolve(
           mockNotes.find(note => note.id === id) || null
         );
       }),
-      findByTag: jest.fn().mockImplementation((tagId) => {
+      findByTag: jest.fn().mockImplementation((tagId: string) => {
         return Promise.resolve(
           mockNotes.filter(note => note.tags.includes(tagId))
         );
       }),
-      create: jest.fn().mockImplementation((note) => Promise.resolve(note)),
-      update: jest.fn().mockImplementation((note) => Promise.resolve(note)),
+      create: jest.fn().mockImplementation((note: MockNote) => Promise.resolve(note)),
+      update: jest.fn().mockImplementation((note: MockNote) => Promise.resolve(note)),
       delete: jest.fn().mockResolvedValue(undefined)
     })
   };
@@ -174,7 +181,7 @@ describe('Server', () => {
         };
         
         // Mock para crear nota
-        mockRepository.create.mockImplementationOnce((note) => {
+        mockRepository.create.mockImplementationOnce((note: MockNote) => {
           return Promise.resolve(new Note(
             note.title,
             note.content,
