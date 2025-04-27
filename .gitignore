@@ -37,4 +37,4 @@ ormconfig.json
 ormconfig/**/*.json
 
 # SQLite (en caso de usar para desarrollo/pruebas)
-*.sqlite
+*.sqlite.env
