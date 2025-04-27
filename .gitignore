@@ -1,0 +1,40 @@
+# Dependencias
+node_modules/
+
+# Archivos de compilación
+dist/
+build/
+
+# Archivos de entorno
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Coverage de tests
+coverage/
+
+# Directorios de IDE y editores
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+
+# TypeORM
+ormconfig.json
+ormconfig/**/*.json
+
+# SQLite (en caso de usar para desarrollo/pruebas)
+*.sqlite
