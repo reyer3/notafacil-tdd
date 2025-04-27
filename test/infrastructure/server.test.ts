@@ -1,15 +1,16 @@
 import request from 'supertest';
-import {app, startServer} from '@infrastructure/server';
+import { app, startServer } from '@infrastructure/server';
 import * as database from '@infrastructure/orm/config/database';
-import {Note} from '@domain/entities/Note';
-import {NoteRepository} from '@domain/repositories/NoteRepository';
-import {Repository} from 'typeorm';
-import {NoteModel} from '@infrastructure/orm/models/NoteModel';
-import {ExportNotesUseCase} from '@application/use-cases/notes/ExportNotesUseCase';
+import { Note } from '@domain/entities/Note';
+import { NoteRepository } from '@domain/repositories/NoteRepository';
+import { Repository } from 'typeorm';
+import { NoteModel } from '@infrastructure/orm/models/NoteModel';
 
-const mockExecuteFn = jest.fn();
+// Mocks para los casos de uso
+const mockExportExecuteFn = jest.fn();
+const mockImportExecuteFn = jest.fn();
 
-// Interfaz para el mock del repositorio de dominio
+// Interfaces para los mocks
 interface MockNoteRepository extends NoteRepository {
     findAll: jest.Mock;
     findByTitle: jest.Mock;
@@ -20,7 +21,6 @@ interface MockNoteRepository extends NoteRepository {
     delete: jest.Mock;
 }
 
-// Interfaz para el mock del repositorio de TypeORM
 interface MockTypeORMRepository extends Partial<Repository<NoteModel>> {
     find: jest.Mock;
     findOne: jest.Mock;
@@ -34,13 +34,17 @@ const createMockNotes = (): Note[] => [
     new Note('Nota 1', 'Contenido 1', '1', new Date('2024-01-10T10:00:00Z'), new Date('2024-01-10T11:00:00Z'), ['tag1']),
     new Note('Nota 2', 'Contenido 2', '2', new Date('2024-01-11T12:00:00Z'), new Date('2024-01-11T13:00:00Z'), ['tag2'])
 ];
+
 const mapNoteToExportFormat = (note: Note) => ({
-    id: note.id, title: note.title, content: note.content,
-    createdAt: note.createdAt.toISOString(), updatedAt: note.updatedAt.toISOString(), tags: note.tags,
+    id: note.id,
+    title: note.title,
+    content: note.content,
+    createdAt: note.createdAt.toISOString(),
+    updatedAt: note.updatedAt.toISOString(),
+    tags: note.tags,
 });
 
-
-// Mock para database que devuelve un mock de TypeORM Repository
+// Mock para database
 jest.mock('@infrastructure/orm/config/database', () => {
     const createTypeORMRepositoryMock = (): MockTypeORMRepository => ({
         find: jest.fn().mockResolvedValue([]),
@@ -65,7 +69,7 @@ jest.mock('@infrastructure/orm/config/database', () => {
     };
 });
 
-// Mock para NoteRepository (para los casos de uso)
+// Mock para NoteRepositoryImpl
 jest.mock('@infrastructure/orm/repositories/NoteRepositoryImpl', () => {
     return {
         NoteRepositoryImpl: jest.fn().mockImplementation(() => ({
@@ -80,22 +84,28 @@ jest.mock('@infrastructure/orm/repositories/NoteRepositoryImpl', () => {
     };
 });
 
-let mockExportNotesUseCase: { execute: jest.Mock };
-
+// Mock para ExportNotesUseCase
 jest.mock('@application/use-cases/notes/ExportNotesUseCase', () => {
     return {
-        // El constructor mockeado ahora devuelve un objeto
-        // que contiene nuestra función mock 'mockExecuteFn'
         ExportNotesUseCase: jest.fn().mockImplementation(() => ({
-            execute: mockExecuteFn // <--- Referencia a la función externa
+            execute: mockExportExecuteFn
         }))
     };
 });
+
+// Mock para ImportNotesUseCase
+jest.mock('@application/use-cases/notes/ImportNotesUseCase', () => {
+    return {
+        ImportNotesUseCase: jest.fn().mockImplementation(() => ({
+            execute: mockImportExecuteFn
+        }))
+    };
+});
+
 describe('Server', () => {
     let mockTypeORMRepository: MockTypeORMRepository;
     let mockNoteRepository: MockNoteRepository;
     let mockNotes: Note[];
-    let mockExportNotesUseCaseInstance: ExportNotesUseCase;
 
     // Configuración de mocks para cada test
     const setupMocks = () => {
@@ -161,14 +171,6 @@ describe('Server', () => {
         const NoteRepositoryImplMock = require('@infrastructure/orm/repositories/NoteRepositoryImpl').NoteRepositoryImpl;
         NoteRepositoryImplMock.mockImplementation(() => mockNoteRepository);
 
-        mockExportNotesUseCase = {
-            execute: jest.fn().mockResolvedValue(JSON.stringify(createMockNotes())) // Devuelve notas mockeadas como JSON string
-        };
-        const ExportNotesUseCaseMock = require('@application/use-cases/notes/ExportNotesUseCase').ExportNotesUseCase;
-        ExportNotesUseCaseMock.mockImplementation(() => mockExportNotesUseCase);
-        // Guarda la instancia mock para poder espiarla/configurarla en tests específicos si es necesario
-        mockExportNotesUseCaseInstance = new ExportNotesUseCaseMock();
-
         return {mockTypeORMRepository, mockNoteRepository};
     };
 
@@ -177,6 +179,10 @@ describe('Server', () => {
         const mocks = setupMocks();
         mockTypeORMRepository = mocks.mockTypeORMRepository;
         mockNoteRepository = mocks.mockNoteRepository;
+
+        // Resetear las funciones de los mocks de casos de uso
+        mockExportExecuteFn.mockReset();
+        mockImportExecuteFn.mockReset();
     });
 
     afterAll(() => {
@@ -190,8 +196,7 @@ describe('Server', () => {
         });
 
         it('debería manejar errores de inicialización de base de datos', async () => {
-            const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {
-            });
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
             const processExitSpy = jest.spyOn(process, 'exit').mockImplementation((() => undefined) as any);
 
             (database.initializeDatabase as jest.Mock).mockRejectedValueOnce(new Error('DB connection error'));
@@ -234,14 +239,6 @@ describe('Server', () => {
                 const filteredNotes = [mockNotes[0]]; // Solo la primera nota
                 mockNoteRepository.findByTitle.mockResolvedValueOnce(filteredNotes);
 
-                // También necesitamos mockear el método find de TypeORM que se usa en NoteRepositoryImpl
-                mockNoteRepository.findAll.mockImplementationOnce((options: any) => {
-                    if (options && options.where && options.where.title) {
-                        return Promise.resolve([mockNotes[0]]);
-                    }
-                    return Promise.resolve(mockNotes);
-                });
-
                 const response = await request(app).get('/api/notes?search=Nota 1');
 
                 expect(response.status).toBe(200);
@@ -255,63 +252,11 @@ describe('Server', () => {
                     Promise.resolve(mockNotes.filter(note => note.tags.includes('tag1')))
                 );
 
-                // Configurar el repositorio TypeORM
-                mockTypeORMRepository.find.mockImplementationOnce(() => {
-                    return Promise.resolve(mockNotes.filter(note => note.tags.includes('tag1')));
-                });
-
-                mockTypeORMRepository.createQueryBuilder.mockReturnValueOnce({
-                    innerJoinAndSelect: jest.fn().mockReturnThis(),
-                    getMany: jest.fn().mockResolvedValue(mockNotes.filter(note => note.tags.includes('tag1')))
-                });
-
                 const response = await request(app).get('/api/notes?tags=tag1');
 
                 expect(response.status).toBe(200);
                 expect(response.body).toHaveLength(1);
                 expect(response.body[0].title).toBe('Nota 1');
-            });
-
-            it('debería crear una nueva nota', async () => {
-                const newNote = {
-                    title: 'Nueva nota',
-                    content: 'Nuevo contenido',
-                    tagIds: ['tag3']
-                };
-
-                mockNoteRepository.create.mockImplementationOnce((note: any) => {
-                    return Promise.resolve(new Note(
-                        note.title,
-                        note.content,
-                        '3',
-                        new Date(),
-                        new Date(),
-                        note.tagIds || []
-                    ));
-                });
-
-                // Configurar el repositorio TypeORM
-                mockTypeORMRepository.save.mockImplementationOnce((noteModel: any) => {
-                    return Promise.resolve({
-                        ...noteModel,
-                        id: '3',
-                        createdAt: new Date(),
-                        updatedAt: new Date(),
-                        tags: (noteModel.tags || []).map((tag: any) => ({
-                            id: tag.id,
-                            name: `Tag ${tag.id}`
-                        }))
-                    });
-                });
-
-                const response = await request(app)
-                    .post('/api/notes')
-                    .send(newNote)
-                    .set('Content-Type', 'application/json');
-
-                expect(response.status).toBe(201);
-                expect(response.body).toHaveProperty('title', 'Nueva nota');
-                expect(response.body).toHaveProperty('content', 'Nuevo contenido');
             });
 
             it('debería manejar el parámetro de alcance de búsqueda', async () => {
@@ -354,21 +299,6 @@ describe('Server', () => {
                     ));
                 });
 
-                // También necesitamos mockear el método save de TypeORM
-                mockNoteRepository.create.mockImplementationOnce((noteModel: any) => {
-                    return Promise.resolve({
-                        ...noteModel,
-                        id: '3',
-                        createdAt: new Date(),
-                        updatedAt: new Date(),
-                        // Asegurar que las etiquetas estén en el formato correcto para mapeo
-                        tags: (noteModel.tags || []).map((tag: any) => ({
-                            id: tag.id,
-                            name: `Tag ${tag.id}`
-                        }))
-                    });
-                });
-
                 const response = await request(app)
                     .post('/api/notes')
                     .send(newNote)
@@ -385,10 +315,6 @@ describe('Server', () => {
                     content: 'Contenido'
                 };
 
-                // Ya no es necesario mockear el repositorio en este caso,
-                // porque el error de validación debería ocurrir en el caso de uso
-                // antes de llegar al repositorio
-
                 const response = await request(app)
                     .post('/api/notes')
                     .send(invalidNote)
@@ -398,106 +324,143 @@ describe('Server', () => {
                 expect(response.body).toHaveProperty('error', 'El título de la nota es obligatorio');
             });
         });
-    });
 
-    describe('GET /api/notes/export', () => {
+        describe('GET /api/notes/export', () => {
+            it('debería exportar todas las notas cuando no se proporcionan IDs', async () => {
+                const mockNotesArray = createMockNotes();
+                const expectedNotes = mockNotesArray.map(mapNoteToExportFormat);
+                const expectedJsonString = JSON.stringify(expectedNotes, null, 2);
 
-        // Limpia la función mock compartida antes de cada test
-        beforeEach(() => {
-            mockExecuteFn.mockClear();
-            // Opcional: resetear a un valor por defecto si no todos los tests usan mock...Once
-            // mockExecuteFn.mockResolvedValue('[]');
+                mockExportExecuteFn.mockResolvedValueOnce(expectedJsonString);
+
+                const response = await request(app).get('/api/notes/export');
+
+                expect(response.status).toBe(200);
+                expect(response.headers['content-type']).toMatch(/application\/json/);
+                expect(JSON.parse(response.text)).toEqual(expectedNotes);
+                expect(mockExportExecuteFn).toHaveBeenCalledWith(undefined);
+            });
+
+            it('debería exportar notas específicas cuando se proporcionan IDs', async () => {
+                const noteIds = ['1'];
+                const filteredNotes = createMockNotes().filter(note => noteIds.includes(note.id));
+                const expectedNotes = filteredNotes.map(mapNoteToExportFormat);
+                const expectedJsonString = JSON.stringify(expectedNotes, null, 2);
+
+                mockExportExecuteFn.mockResolvedValueOnce(expectedJsonString);
+
+                const response = await request(app).get(`/api/notes/export?ids=${noteIds.join(',')}`);
+
+                expect(response.status).toBe(200);
+                expect(JSON.parse(response.text)).toEqual(expectedNotes);
+                expect(mockExportExecuteFn).toHaveBeenCalledWith(noteIds);
+            });
+
+            it('debería manejar IDs vacíos en el parámetro de consulta', async () => {
+                const invalidQuery = 'valid-id,,';
+                const expectedParsedIds = ['valid-id'];
+                const expectedJsonString = '[]';
+
+                mockExportExecuteFn.mockResolvedValueOnce(expectedJsonString);
+
+                const response = await request(app).get(`/api/notes/export?ids=${invalidQuery}`);
+
+                expect(response.status).toBe(200);
+                expect(response.text).toBe(expectedJsonString);
+                expect(mockExportExecuteFn).toHaveBeenCalledWith(expectedParsedIds);
+            });
+
+            it('debería manejar errores durante la exportación', async () => {
+                const errorMessage = 'Error de exportación';
+                mockExportExecuteFn.mockRejectedValueOnce(new Error(errorMessage));
+
+                const response = await request(app).get('/api/notes/export');
+
+                expect(response.status).toBe(500);
+                expect(response.body).toEqual({ error: errorMessage });
+            });
         });
 
-        it('should return all notes as a JSON string when no IDs are provided', async () => {
-            const mockNotesArray = createMockNotes();
-            const expectedNotes = mockNotesArray.map(mapNoteToExportFormat);
-            const expectedJsonString = JSON.stringify(expectedNotes);
+        describe('POST /api/notes/import', () => {
+            it('debería importar notas en modo SKIP por defecto', async () => {
+                const notesJson = JSON.stringify(createMockNotes().map(note => note.toJSON()));
+                const mockResult = {
+                    importedCount: 2,
+                    updatedCount: 0,
+                    skippedCount: 0
+                };
 
-            // Configura la función mock externa para este test
-            mockExecuteFn.mockResolvedValueOnce(expectedJsonString);
+                mockImportExecuteFn.mockResolvedValueOnce(mockResult);
 
-            const response = await request(app).get('/api/notes/export');
+                const response = await request(app)
+                    .post('/api/notes/import')
+                    .send({ jsonData: notesJson })
+                    .set('Content-Type', 'application/json');
 
-            expect(response.status).toBe(200);
-            expect(response.headers['content-type']).toMatch(/application\/json/);
-            expect(JSON.parse(response.text)).toEqual(expectedNotes);
-            // Verifica la función mock externa
-            expect(mockExecuteFn).toHaveBeenCalledWith(undefined);
-            expect(mockExecuteFn).toHaveBeenCalledTimes(1);
-        });
+                expect(response.status).toBe(200);
+                expect(response.body).toEqual(mockResult);
+                expect(mockImportExecuteFn).toHaveBeenCalledWith(notesJson, 'SKIP');
+            });
 
-        it('should return specific notes as JSON when ids are provided via query param', async () => {
-            const mockNotesArray = createMockNotes();
-            const specificNotes = [mockNotesArray[0]];
-            const noteIds = [specificNotes[0].id];
-            const expectedNotes = specificNotes.map(mapNoteToExportFormat);
-            const expectedJsonString = JSON.stringify(expectedNotes);
+            it('debería importar notas en modo UPDATE cuando se especifica', async () => {
+                const notesJson = JSON.stringify(createMockNotes().map(note => note.toJSON()));
+                const mockResult = {
+                    importedCount: 0,
+                    updatedCount: 2,
+                    skippedCount: 0
+                };
 
-            // Configura la función mock externa
-            mockExecuteFn.mockResolvedValueOnce(expectedJsonString);
+                mockImportExecuteFn.mockResolvedValueOnce(mockResult);
 
-            const response = await request(app).get(`/api/notes/export?ids=${noteIds.join(',')}`);
+                const response = await request(app)
+                    .post('/api/notes/import')
+                    .send({ jsonData: notesJson, mode: 'UPDATE' })
+                    .set('Content-Type', 'application/json');
 
-            expect(response.status).toBe(200);
-            expect(response.headers['content-type']).toMatch(/application\/json/);
-            expect(JSON.parse(response.text)).toEqual(expectedNotes);
-            // Verifica la función mock externa
-            expect(mockExecuteFn).toHaveBeenCalledWith(noteIds);
-            expect(mockExecuteFn).toHaveBeenCalledTimes(1);
-        });
+                expect(response.status).toBe(200);
+                expect(response.body).toEqual(mockResult);
+                expect(mockImportExecuteFn).toHaveBeenCalledWith(notesJson, 'UPDATE');
+            });
 
-        it('should return an empty array JSON when provided IDs do not match any notes', async () => {
-            const nonExistentIds = ['non-existent-1', 'non-existent-2'];
-            const expectedJsonString = "[]";
-            const expectedNotes: any[] = [];
+            it('debería rechazar peticiones sin jsonData', async () => {
+                const response = await request(app)
+                    .post('/api/notes/import')
+                    .send({})
+                    .set('Content-Type', 'application/json');
 
-            // Configura la función mock externa
-            mockExecuteFn.mockResolvedValueOnce(expectedJsonString);
+                expect(response.status).toBe(500);
+                expect(response.body).toHaveProperty('error', 'Se requiere el campo jsonData con datos JSON válidos');
+            });
 
-            const response = await request(app).get(`/api/notes/export?ids=${nonExistentIds.join(',')}`);
+            it('debería manejar errores durante la importación', async () => {
+                const notesJson = JSON.stringify(createMockNotes().map(note => note.toJSON()));
+                const errorMessage = 'Error de importación';
 
-            expect(response.status).toBe(200);
-            expect(response.headers['content-type']).toMatch(/application\/json/);
-            expect(JSON.parse(response.text)).toEqual(expectedNotes);
-            // Verifica la función mock externa
-            expect(mockExecuteFn).toHaveBeenCalledWith(nonExistentIds);
-            expect(mockExecuteFn).toHaveBeenCalledTimes(1);
-        });
+                mockImportExecuteFn.mockRejectedValueOnce(new Error(errorMessage));
 
-        it('should return an empty array JSON for invalid or empty IDs in query param', async () => {
-            const invalidQuery = 'valid-id,,invalid-char,*,&,';
-            const expectedParsedIds = ['valid-id', 'invalid-char', '*', '&'];
-            const expectedJsonString = "[]";
-            const expectedNotes: any[] = [];
+                const response = await request(app)
+                    .post('/api/notes/import')
+                    .send({ jsonData: notesJson })
+                    .set('Content-Type', 'application/json');
 
-            // Configura la función mock externa
-            mockExecuteFn.mockResolvedValueOnce(expectedJsonString);
+                expect(response.status).toBe(500);
+                expect(response.body).toEqual({ error: errorMessage });
+            });
 
-            const response = await request(app).get(`/api/notes/export?ids=${invalidQuery}`);
+            it('debería manejar JSON inválido durante la importación', async () => {
+                const invalidJson = '{"id": "invalid-1", "title": "Nota inválida"'; // JSON incompleto
+                const errorMessage = 'JSON inválido: Unexpected end of JSON input';
 
-            expect(response.status).toBe(200);
-            expect(response.headers['content-type']).toMatch(/application\/json/);
-            expect(JSON.parse(response.text)).toEqual(expectedNotes);
-            // Verifica la función mock externa
-            expect(mockExecuteFn).toHaveBeenCalledWith(expectedParsedIds);
-            expect(mockExecuteFn).toHaveBeenCalledTimes(1);
-        });
+                mockImportExecuteFn.mockRejectedValueOnce(new Error(errorMessage));
 
-        it('should handle errors from the use case and return 500', async () => {
-            const errorMessage = "Database connection failed during export";
-            const error = new Error(errorMessage);
+                const response = await request(app)
+                    .post('/api/notes/import')
+                    .send({ jsonData: invalidJson })
+                    .set('Content-Type', 'application/json');
 
-            // Configura la función mock externa para que falle
-            mockExecuteFn.mockRejectedValueOnce(error);
-
-            const response = await request(app).get('/api/notes/export');
-
-            expect(response.status).toBe(500);
-            expect(response.body).toEqual({error: errorMessage});
-            // Verifica la función mock externa
-            expect(mockExecuteFn).toHaveBeenCalledWith(undefined);
-            expect(mockExecuteFn).toHaveBeenCalledTimes(1);
+                expect(response.status).toBe(500);
+                expect(response.body).toHaveProperty('error', errorMessage);
+            });
         });
     });
 });

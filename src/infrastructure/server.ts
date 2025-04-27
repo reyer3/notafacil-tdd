@@ -7,6 +7,8 @@ import { NoteRepositoryImpl } from '@infrastructure/orm/repositories/NoteReposit
 import { TagRepositoryImpl } from '@infrastructure/orm/repositories/TagRepositoryImpl';
 import { SearchNotesUseCase, SearchScope } from '@application/use-cases/notes/SearchNotesUseCase';
 import { CreateNoteUseCase } from '@application/use-cases/notes/CreateNoteUseCase';
+import { ExportNotesUseCase } from '@application/use-cases/notes/ExportNotesUseCase';
+import { ImportNotesUseCase, ImportMode } from '@application/use-cases/notes/ImportNotesUseCase';
 
 // Instancia de Express
 export const app = express();
@@ -17,6 +19,8 @@ let noteRepository: NoteRepositoryImpl;
 let tagRepository: TagRepositoryImpl;
 let searchNotesUseCase: SearchNotesUseCase;
 let createNoteUseCase: CreateNoteUseCase;
+let exportNotesUseCase: ExportNotesUseCase;
+let importNotesUseCase: ImportNotesUseCase;
 
 // Middlewares
 app.use(express.json());
@@ -36,6 +40,8 @@ export const startServer = async (port = 0): Promise<number> => {
     // Configurar casos de uso
     searchNotesUseCase = new SearchNotesUseCase(noteRepository);
     createNoteUseCase = new CreateNoteUseCase(noteRepository);
+    exportNotesUseCase = new ExportNotesUseCase(noteRepository);
+    importNotesUseCase = new ImportNotesUseCase(noteRepository);
 
     // Iniciar el servidor en un puerto disponible
     return new Promise((resolve) => {
@@ -121,6 +127,52 @@ app.post('/api/notes', async (req, res, next) => {
     });
 
     res.status(201).json(newNote);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Endpoint para exportar notas
+app.get('/api/notes/export', async (req, res, next) => {
+  try {
+    // Obtener IDs de notas de query params (opcional)
+    const idsParam = req.query.ids as string;
+    let noteIds: string[] | undefined = undefined;
+
+    if (idsParam) {
+      // Filtrar IDs vacíos que puedan resultar de comas consecutivas
+      noteIds = idsParam.split(',').filter(id => id.trim() !== '');
+    }
+
+    // Ejecutar caso de uso para exportar
+    const jsonData = await exportNotesUseCase.execute(noteIds);
+
+    // Devolver los datos como JSON
+    res.setHeader('Content-Type', 'application/json');
+    res.status(200).send(jsonData);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Endpoint para importar notas
+app.post('/api/notes/import', async (req, res, next) => {
+  try {
+    // Obtener datos JSON del cuerpo de la petición
+    const { jsonData, mode } = req.body;
+
+    if (!jsonData || typeof jsonData !== 'string') {
+      throw new Error('Se requiere el campo jsonData con datos JSON válidos');
+    }
+
+    // Determinar el modo de importación
+    const importMode: ImportMode = mode === 'UPDATE' ? 'UPDATE' : 'SKIP';
+
+    // Ejecutar caso de uso para importar
+    const result = await importNotesUseCase.execute(jsonData, importMode);
+
+    // Devolver el resultado de la importación
+    res.status(200).json(result);
   } catch (error) {
     next(error);
   }
