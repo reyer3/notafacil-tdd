@@ -39,6 +39,9 @@ export class Tag {
   }
 
   updateColor(color: string): void {
+    if (!this.isValidColor(color)) {
+      throw new Error('El color debe ser un código hexadecimal válido (formato: #RRGGBB)');
+    }
     this._color = color;
     this.validate();
   }
