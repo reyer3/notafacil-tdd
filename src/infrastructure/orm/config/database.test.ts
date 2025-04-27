@@ -1,15 +1,42 @@
 import { DataSource } from 'typeorm';
 import * as database from './database';
 
+// Interfaz para extender las propiedades del mock
+interface MockDataSource {
+  initialize: jest.Mock;
+  destroy: jest.Mock;
+  isInitialized: boolean;
+  options: {
+    database: string;
+    type: string;
+    synchronize: boolean;
+    logging: boolean;
+    dropSchema: boolean;
+    migrationsRun: boolean;
+  };
+  getRepository: jest.Mock;
+}
+
 // Mock para TypeORM DataSource
 jest.mock('typeorm', () => {
   const originalModule = jest.requireActual('typeorm');
   
+  // Estado interno del mock para controlar isInitialized
+  let _isInitialized = false;
+  
   // Crear un mock de DataSource
   const mockDataSource = {
-    initialize: jest.fn().mockResolvedValue(true),
-    destroy: jest.fn().mockResolvedValue(true),
-    isInitialized: false,
+    initialize: jest.fn().mockImplementation(() => {
+      _isInitialized = true;
+      return Promise.resolve(mockDataSource);
+    }),
+    destroy: jest.fn().mockImplementation(() => {
+      _isInitialized = false;
+      return Promise.resolve();
+    }),
+    get isInitialized() {
+      return _isInitialized;
+    },
     options: {
       database: 'test_db',
       type: 'postgres',
@@ -43,20 +70,19 @@ describe('Database Configuration', () => {
     // Resetear la variable de estado
     mockConnected = false;
     
-    // Configurar el mock para asegurar que options tenga las propiedades necesarias
-    const dataSource = database.getDataSource();
+    // Acceder al mock de dataSource
+    const dataSource = database.getDataSource() as unknown as MockDataSource;
     
-    // Mockear la función de inicialización
-    (dataSource.initialize as jest.Mock).mockImplementation(() => {
+    // Reiniciar los mocks para las pruebas
+    dataSource.initialize.mockImplementation(() => {
       mockConnected = true;
-      dataSource.isInitialized = true;
+      // Nota: no necesitamos asignar a isInitialized aquí, ya que se maneja internamente
       return Promise.resolve(dataSource);
     });
     
-    // Mockear la función de cierre
-    (dataSource.destroy as jest.Mock).mockImplementation(() => {
+    dataSource.destroy.mockImplementation(() => {
       mockConnected = false;
-      dataSource.isInitialized = false;
+      // Nota: no necesitamos asignar a isInitialized aquí, ya que se maneja internamente
       return Promise.resolve();
     });
     
@@ -100,8 +126,12 @@ describe('Database Configuration', () => {
   
   describe('initializeDatabase', () => {
     it('should initialize the database connection', async () => {
-      const dataSource = database.getDataSource();
-      dataSource.isInitialized = false;
+      const dataSource = database.getDataSource() as unknown as MockDataSource;
+      // Forzamos el mock para que se considere no inicializado
+      dataSource.initialize.mockImplementationOnce(() => {
+        mockConnected = true;
+        return Promise.resolve(dataSource);
+      });
       
       const result = await database.initializeDatabase();
       
@@ -111,8 +141,11 @@ describe('Database Configuration', () => {
     });
     
     it('should not initialize the database if it is already initialized', async () => {
-      const dataSource = database.getDataSource();
-      dataSource.isInitialized = true;
+      const dataSource = database.getDataSource() as unknown as MockDataSource;
+      // Simular que ya está inicializado
+      Object.defineProperty(dataSource, 'isInitialized', {
+        get: jest.fn().mockReturnValue(true)
+      });
       
       const result = await database.initializeDatabase();
       
@@ -121,9 +154,8 @@ describe('Database Configuration', () => {
     });
     
     it('should throw an error when initialization fails', async () => {
-      const dataSource = database.getDataSource();
-      dataSource.isInitialized = false;
-      (dataSource.initialize as jest.Mock).mockRejectedValueOnce(new Error('Connection error'));
+      const dataSource = database.getDataSource() as unknown as MockDataSource;
+      dataSource.initialize.mockRejectedValueOnce(new Error('Connection error'));
       
       await expect(database.initializeDatabase()).rejects.toThrow('Connection error');
       expect(mockConnected).toBe(false);
@@ -132,9 +164,11 @@ describe('Database Configuration', () => {
   
   describe('closeDatabase', () => {
     it('should close the database connection if it is initialized', async () => {
-      // Configurar el mock para que parezca que está inicializado
-      const dataSource = database.getDataSource();
-      dataSource.isInitialized = true;
+      const dataSource = database.getDataSource() as unknown as MockDataSource;
+      // Simular que está inicializado
+      Object.defineProperty(dataSource, 'isInitialized', {
+        get: jest.fn().mockReturnValue(true)
+      });
       mockConnected = true;
       
       await database.closeDatabase();
@@ -144,8 +178,11 @@ describe('Database Configuration', () => {
     });
     
     it('should not close the database if it is not initialized', async () => {
-      const dataSource = database.getDataSource();
-      dataSource.isInitialized = false;
+      const dataSource = database.getDataSource() as unknown as MockDataSource;
+      // Simular que no está inicializado
+      Object.defineProperty(dataSource, 'isInitialized', {
+        get: jest.fn().mockReturnValue(false)
+      });
       
       await database.closeDatabase();
       
@@ -156,22 +193,26 @@ describe('Database Configuration', () => {
   describe('Database Options', () => {
     // Mockear las opciones directamente para estas pruebas
     beforeEach(() => {
-      // Configura los mocks con valores específicos para estas pruebas
-      const devDataSource = database.developmentDataSource;
-      const testDataSource = database.testDataSource;
-      const prodDataSource = database.productionDataSource;
+      // Configuramos opciones específicas para cada dataSource
+      const devOptions = {
+        synchronize: true,
+        logging: true
+      };
       
-      // Desarrollo
-      Object.defineProperty(devDataSource.options, 'synchronize', { get: () => true });
-      Object.defineProperty(devDataSource.options, 'logging', { get: () => true });
+      const testOptions = {
+        dropSchema: true,
+        synchronize: true
+      };
       
-      // Test
-      Object.defineProperty(testDataSource.options, 'dropSchema', { get: () => true });
-      Object.defineProperty(testDataSource.options, 'synchronize', { get: () => true });
+      const prodOptions = {
+        synchronize: false,
+        migrationsRun: true
+      };
       
-      // Producción
-      Object.defineProperty(prodDataSource.options, 'synchronize', { get: () => false });
-      Object.defineProperty(prodDataSource.options, 'migrationsRun', { get: () => true });
+      // Aplicamos las opciones a los diferentes DataSource
+      jest.spyOn(database.developmentDataSource, 'options', 'get').mockReturnValue(devOptions as any);
+      jest.spyOn(database.testDataSource, 'options', 'get').mockReturnValue(testOptions as any);
+      jest.spyOn(database.productionDataSource, 'options', 'get').mockReturnValue(prodOptions as any);
     });
     
     it('should configure development database with synchronize enabled and logging', () => {
