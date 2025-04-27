@@ -1,6 +1,6 @@
 import { Note } from '../../../domain/entities/Note';
 import { NoteRepository } from '../../../domain/repositories/NoteRepository';
-import { SearchNotesUseCase } from './SearchNotesUseCase';
+import { SearchNotesUseCase, SearchScope } from './SearchNotesUseCase';
 
 // Mock del repositorio
 class MockNoteRepository implements NoteRepository {
@@ -67,7 +67,11 @@ describe('SearchNotesUseCase', () => {
 
   // Test de búsqueda por texto en título
   it('should find notes by text in title', async () => {
-    const result = await searchNotesUseCase.execute({ searchText: 'proyecto', tagIds: [] });
+    const result = await searchNotesUseCase.execute({ 
+      searchText: 'proyecto', 
+      tagIds: [],
+      searchScope: SearchScope.TITLE_ONLY
+    });
     
     expect(result).toHaveLength(1);
     expect(result[0].title).toBe('Ideas para proyecto');
@@ -75,10 +79,27 @@ describe('SearchNotesUseCase', () => {
 
   // Test de búsqueda por texto en contenido
   it('should find notes by text in content', async () => {
-    const result = await searchNotesUseCase.execute({ searchText: 'dentista', tagIds: [] });
+    const result = await searchNotesUseCase.execute({ 
+      searchText: 'dentista', 
+      tagIds: [],
+      searchScope: SearchScope.CONTENT_ONLY
+    });
     
     expect(result).toHaveLength(1);
     expect(result[0].title).toBe('Recordatorios');
+  });
+
+  // Test de búsqueda en título y contenido
+  it('should find notes by text in both title and content', async () => {
+    const result = await searchNotesUseCase.execute({ 
+      searchText: 'proyecto', 
+      tagIds: [],
+      searchScope: SearchScope.BOTH
+    });
+    
+    expect(result).toHaveLength(2);
+    expect(result.map(note => note.title)).toContain('Ideas para proyecto');
+    expect(result.map(note => note.title)).toContain('Reunión de trabajo');
   });
 
   // Test de búsqueda por etiqueta
@@ -92,7 +113,11 @@ describe('SearchNotesUseCase', () => {
 
   // Test de búsqueda combinada (texto + etiqueta)
   it('should find notes by text and tag id', async () => {
-    const result = await searchNotesUseCase.execute({ searchText: 'proyecto', tagIds: ['2'] });
+    const result = await searchNotesUseCase.execute({ 
+      searchText: 'proyecto', 
+      tagIds: ['2'],
+      searchScope: SearchScope.TITLE_ONLY
+    });
     
     expect(result).toHaveLength(1);
     expect(result[0].title).toBe('Ideas para proyecto');
