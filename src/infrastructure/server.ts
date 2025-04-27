@@ -5,7 +5,7 @@ import { TagModel } from './orm/models/TagModel';
 import { NoteRepositoryImpl } from './orm/repositories/NoteRepositoryImpl';
 import { TagRepositoryImpl } from './orm/repositories/TagRepositoryImpl';
 import { CreateNoteUseCase } from '../application/use-cases/notes/CreateNoteUseCase';
-import { SearchNotesUseCase } from '../application/use-cases/notes/SearchNotesUseCase';
+import { SearchNotesUseCase, SearchScope } from '../application/use-cases/notes/SearchNotesUseCase';
 
 // Inicializar Express
 const app = express();
@@ -56,8 +56,19 @@ app.get('/api/notes', async (req, res, next) => {
     const searchText = req.query.search as string || '';
     const tagIds = req.query.tags ? (req.query.tags as string).split(',') : [];
     
+    // Determinar el scope de búsqueda basado en el parámetro de consulta
+    let searchScope = SearchScope.TITLE_ONLY; // Por defecto, buscar solo en el título
+    if (req.query.scope) {
+      const scope = req.query.scope as string;
+      if (scope === 'content') {
+        searchScope = SearchScope.CONTENT_ONLY;
+      } else if (scope === 'both') {
+        searchScope = SearchScope.BOTH;
+      }
+    }
+    
     const searchUseCase = new SearchNotesUseCase(noteRepository);
-    const notes = await searchUseCase.execute({ searchText, tagIds });
+    const notes = await searchUseCase.execute({ searchText, tagIds, searchScope });
     
     res.json(notes.map(note => note.toJSON()));
   } catch (error) {
