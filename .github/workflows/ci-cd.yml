@@ -148,8 +148,11 @@ jobs:
 
       - name: Deploy to VPS
         run: |
+          # Verificar que la clave SSH está funcionando
+          ssh -v -p 2222 cicd@ssh.urbanlink.pe whoami
+
           # Ejecutar comandos de despliegue en el servidor
-          ssh cicd@ssh.urbanlink.pe -p 2222 << EOF
+          ssh -p 2222 cicd@ssh.urbanlink.pe << EOF
             cd /opt/apps/notafacil || exit 1
             git pull origin ${GITHUB_REF##*/}
             sudo /usr/local/bin/docker-compose -f /opt/apps/notafacil/docker-compose.yml pull app
