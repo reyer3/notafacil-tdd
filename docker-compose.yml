@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: notafacil_app
+    restart: unless-stopped
+    # No exponemos puertos directamente ya que Traefik manejará esto
+    depends_on:
+      - db
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USERNAME=${DB_USERNAME:-notafacil_db_user}
+      - DB_PASSWORD=${DB_PASSWORD:-notafacil_password}
+      - DB_NAME=${DB_NAME:-notafacil_prod}
+      - SSLMODE=disable
+    networks:
+      - notafacil-network
+      - traefik-public  # Red compartida con Traefik
+    volumes:
+      - ./logs:/app/logs
+    labels:
+      - "traefik.enable=true"
+      # Configuración HTTPS
+      - "traefik.http.routers.notafacil-secure.rule=Host(`notafacil-api.urbanlink.pe`)"
+      - "traefik.http.routers.notafacil-secure.entrypoints=websecure"
+      - "traefik.http.routers.notafacil-secure.tls=true"
+      - "traefik.http.routers.notafacil-secure.tls.certresolver=cloudflare"
+      - "traefik.http.routers.notafacil-secure.service=notafacil"
+      # Configuración HTTP sin redirección
+      - "traefik.http.routers.notafacil.rule=Host(`notafacil-api.urbanlink.pe`)"
+      - "traefik.http.routers.notafacil.entrypoints=web"
+      - "traefik.http.routers.notafacil.service=notafacil"
+      # Configuración del servicio
+      - "traefik.http.services.notafacil.loadbalancer.server.port=3000"
+
+  db:
+    image: postgres:15-alpine
+    container_name: notafacil_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${DB_USERNAME:-notafacil_db_user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-notafacil_password}
+      - POSTGRES_DB=${DB_NAME:-notafacil_prod}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - notafacil-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-notafacil_db_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+
+networks:
+  notafacil-network:
+    driver: bridge
+  traefik-public:
+    external: true
