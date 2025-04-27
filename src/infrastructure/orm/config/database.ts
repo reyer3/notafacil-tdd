@@ -6,9 +6,9 @@ import { TagModel } from '../models/TagModel';
 const entities = [NoteModel, TagModel];
 
 // Configuración base para PostgreSQL
-const getBaseConfig = (env: string): DataSourceOptions => {
+const getBaseConfig = (env: string): Partial<DataSourceOptions> => {
   return {
-    type: 'postgres',
+    type: 'postgres' as const,
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT || '5432'),
     username: process.env.DB_USERNAME || 'postgres',
@@ -23,7 +23,7 @@ const getBaseConfig = (env: string): DataSourceOptions => {
 export const developmentDataSource = new DataSource({
   ...getBaseConfig('development'),
   database: process.env.DB_NAME || 'notafacil_dev'
-});
+} as DataSourceOptions);
 
 // Configuración para entorno de pruebas (PostgreSQL de prueba)
 export const testDataSource = new DataSource({
@@ -31,7 +31,7 @@ export const testDataSource = new DataSource({
   database: process.env.TEST_DB_NAME || 'notafacil_test',
   dropSchema: true, // Esto limpia la BD de pruebas antes de cada ejecución
   synchronize: true
-});
+} as DataSourceOptions);
 
 // Configuración para entorno de producción
 export const productionDataSource = new DataSource({
@@ -40,7 +40,7 @@ export const productionDataSource = new DataSource({
   synchronize: false, // En producción, usar migraciones en lugar de sincronización automática
   migrationsRun: true, // Ejecutar migraciones al iniciar
   migrations: [__dirname + '/../migrations/*.{js,ts}']
-});
+} as DataSourceOptions);
 
 // Función para obtener la fuente de datos según el entorno
 export const getDataSource = (): DataSource => {
