@@ -4,27 +4,6 @@ import * as database from './orm/config/database';
 import { Note } from '../domain/entities/Note';
 import { SearchScope } from '../application/use-cases/notes/SearchNotesUseCase';
 
-// Mock de la inicialización de la base de datos
-jest.mock('./orm/config/database', () => {
-  const mockRepository = {
-    findAll: jest.fn(),
-    findByTitle: jest.fn(),
-    findById: jest.fn(),
-    findByTag: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn()
-  };
-  
-  return {
-    initializeDatabase: jest.fn().mockResolvedValue({
-      getRepository: jest.fn().mockReturnValue(mockRepository)
-    }),
-    closeDatabase: jest.fn().mockResolvedValue(undefined),
-    isDatabaseConnected: jest.fn().mockReturnValue(true)
-  };
-});
-
 // Definir tipo para el mock de notas
 interface MockNote {
   title: string;
@@ -38,35 +17,62 @@ const mockNotes = [
   new Note('Nota 2', 'Contenido 2', '2', new Date(), new Date(), ['tag2'])
 ];
 
-// Mock del repositorio para que devuelva notas
-const setupMockRepository = () => {
-  const dataSource = {
-    getRepository: jest.fn().mockReturnValue({
-      findAll: jest.fn().mockResolvedValue(mockNotes),
-      findByTitle: jest.fn().mockImplementation((title: string) => {
-        return Promise.resolve(
-          mockNotes.filter(note => note.title.includes(title))
-        );
-      }),
-      findById: jest.fn().mockImplementation((id: string) => {
-        return Promise.resolve(
-          mockNotes.find(note => note.id === id) || null
-        );
-      }),
-      findByTag: jest.fn().mockImplementation((tagId: string) => {
-        return Promise.resolve(
-          mockNotes.filter(note => note.tags.includes(tagId))
-        );
-      }),
-      create: jest.fn().mockImplementation((note: MockNote) => Promise.resolve(note)),
-      update: jest.fn().mockImplementation((note: MockNote) => Promise.resolve(note)),
-      delete: jest.fn().mockResolvedValue(undefined)
-    })
+// Mock completo para database
+jest.mock('./orm/config/database', () => {
+  const mockRepository = {
+    findAll: jest.fn().mockResolvedValue([]),
+    findByTitle: jest.fn().mockResolvedValue([]),
+    findById: jest.fn().mockResolvedValue(null),
+    findByTag: jest.fn().mockResolvedValue([]),
+    create: jest.fn().mockImplementation((note: any) => Promise.resolve(note)),
+    update: jest.fn().mockImplementation((note: any) => Promise.resolve(note)),
+    delete: jest.fn().mockResolvedValue(undefined)
   };
   
-  (database.initializeDatabase as jest.Mock).mockResolvedValue(dataSource);
+  const dataSourceMock = {
+    getRepository: jest.fn().mockReturnValue(mockRepository),
+    isInitialized: true
+  };
   
-  return dataSource.getRepository();
+  return {
+    initializeDatabase: jest.fn().mockResolvedValue(dataSourceMock),
+    closeDatabase: jest.fn().mockResolvedValue(undefined),
+    isDatabaseConnected: jest.fn().mockReturnValue(true)
+  };
+});
+
+// Configura los mocks específicos para las pruebas
+const setupMockRepository = () => {
+  const mockRepository = {
+    findAll: jest.fn().mockResolvedValue(mockNotes),
+    findByTitle: jest.fn().mockImplementation((title: string) => {
+      return Promise.resolve(
+        mockNotes.filter(note => note.title.includes(title))
+      );
+    }),
+    findById: jest.fn().mockImplementation((id: string) => {
+      return Promise.resolve(
+        mockNotes.find(note => note.id === id) || null
+      );
+    }),
+    findByTag: jest.fn().mockImplementation((tagId: string) => {
+      return Promise.resolve(
+        mockNotes.filter(note => note.tags.includes(tagId))
+      );
+    }),
+    create: jest.fn().mockImplementation((note: MockNote) => Promise.resolve(note)),
+    update: jest.fn().mockImplementation((note: MockNote) => Promise.resolve(note)),
+    delete: jest.fn().mockResolvedValue(undefined)
+  };
+  
+  const dataSourceMock = {
+    getRepository: jest.fn().mockReturnValue(mockRepository),
+    isInitialized: true
+  };
+  
+  (database.initializeDatabase as jest.Mock).mockResolvedValue(dataSourceMock);
+  
+  return mockRepository;
 };
 
 describe('Server', () => {
@@ -77,6 +83,10 @@ describe('Server', () => {
     mockRepository = setupMockRepository();
   });
   
+  afterAll(() => {
+    jest.restoreAllMocks();
+  });
+  
   describe('startServer', () => {
     it('should initialize database and set up repositories', async () => {
       await startServer();
@@ -85,7 +95,7 @@ describe('Server', () => {
     });
     
     it('should handle database initialization errors', async () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
       const processExitSpy = jest.spyOn(process, 'exit').mockImplementation((() => undefined) as any);
       
       (database.initializeDatabase as jest.Mock).mockRejectedValueOnce(new Error('DB connection error'));
@@ -181,14 +191,14 @@ describe('Server', () => {
         };
         
         // Mock para crear nota
-        mockRepository.create.mockImplementationOnce((note: MockNote) => {
+        mockRepository.create.mockImplementationOnce((note: any) => {
           return Promise.resolve(new Note(
             note.title,
             note.content,
             '3',
             new Date(),
             new Date(),
-            note.tags
+            note.tagIds || []
           ));
         });
         
