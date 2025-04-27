@@ -49,11 +49,11 @@ Contenido recomendado para el archivo `.env` en producción:
 ```
 # Configuración de base de datos
 # Full PostgreSQL Connection String
-DATABASE_URL=postgresql://notafacil_db_user:TU_PASSWORD_SEGURA@localhost:5433/notafacil_prod?sslmode=require
+DATABASE_URL=postgresql://notafacil_db_user:TU_PASSWORD_SEGURA@localhost:5432/notafacil_prod?sslmode=require
 
 # Production Database
 DB_HOST=localhost
-DB_PORT=5433
+DB_PORT=5432
 DB_USERNAME=notafacil_db_user
 DB_PASSWORD=TU_PASSWORD_SEGURA
 DB_NAME=notafacil_prod

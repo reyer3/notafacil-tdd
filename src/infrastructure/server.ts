@@ -1,3 +1,5 @@
+import * as dotenv from 'dotenv';
+import path from 'path';
 import express, { Request, Response, NextFunction } from 'express';
 import { DataSource, Repository } from 'typeorm';
 import { initializeDatabase } from '@infrastructure/orm/config/database';
@@ -9,7 +11,7 @@ import { SearchNotesUseCase, SearchScope } from '@application/use-cases/notes/Se
 import { CreateNoteUseCase } from '@application/use-cases/notes/CreateNoteUseCase';
 import { ExportNotesUseCase } from '@application/use-cases/notes/ExportNotesUseCase';
 import { ImportNotesUseCase, ImportMode } from '@application/use-cases/notes/ImportNotesUseCase';
-
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 // Instancia de Express
 export const app = express();
 

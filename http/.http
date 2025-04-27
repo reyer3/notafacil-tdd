@@ -1,0 +1,80 @@
+### Variables globales
+@baseUrl = http://localhost:3000/api
+@contentType = application/json
+
+### Verificar salud del servidor
+GET {{baseUrl}}/health
+Accept: {{contentType}}
+
+### Obtener todas las notas
+GET {{baseUrl}}/notes
+Accept: {{contentType}}
+
+### Buscar notas por texto (en el título)
+GET {{baseUrl}}/notes?search=proyecto
+Accept: {{contentType}}
+
+### Buscar notas por texto (en el contenido)
+GET {{baseUrl}}/notes?search=reunión&scope=content
+Accept: {{contentType}}
+
+### Buscar notas por texto (en título y contenido)
+GET {{baseUrl}}/notes?search=proyecto&scope=both
+Accept: {{contentType}}
+
+### Buscar notas por etiqueta
+GET {{baseUrl}}/notes?tags=tag1
+Accept: {{contentType}}
+
+### Buscar notas por múltiples etiquetas
+GET {{baseUrl}}/notes?tags=tag1,tag2
+Accept: {{contentType}}
+
+### Buscar por texto y etiquetas combinados
+GET {{baseUrl}}/notes?search=proyecto&tags=tag1&scope=both
+Accept: {{contentType}}
+
+### Crear una nueva nota
+POST {{baseUrl}}/notes
+Content-Type: {{contentType}}
+
+{
+  "title": "Nota de prueba desde HTTP",
+  "content": "Esta es una nota creada desde la prueba HTTP",
+  "tagIds": ["tag1", "tag2"]
+}
+
+### Crear una nota sin etiquetas
+POST {{baseUrl}}/notes
+Content-Type: {{contentType}}
+
+{
+  "title": "Nota sin etiquetas",
+  "content": "Esta nota no tiene etiquetas asociadas"
+}
+
+### Exportar todas las notas
+GET {{baseUrl}}/notes/export
+Accept: {{contentType}}
+
+### Exportar notas específicas por ID
+GET {{baseUrl}}/notes/export?ids=1,2
+Accept: {{contentType}}
+
+### Importar notas (modo SKIP - omitir existentes)
+POST {{baseUrl}}/notes/import
+Content-Type: {{contentType}}
+
+{
+  "jsonData": "[{\"id\":\"import-1\",\"title\":\"Nota importada 1\",\"content\":\"Contenido importado 1\",\"createdAt\":\"2025-02-01T00:00:00.000Z\",\"updatedAt\":\"2025-02-01T00:00:00.000Z\",\"tags\":[\"tag1\",\"tag3\"]},{\"id\":\"import-2\",\"title\":\"Nota importada 2\",\"content\":\"Contenido importado 2\",\"createdAt\":\"2025-02-02T00:00:00.000Z\",\"updatedAt\":\"2025-02-02T00:00:00.000Z\",\"tags\":[\"tag2\",\"tag4\"]}]",
+  "mode": "SKIP"
+}
+
+### Importar notas (modo UPDATE - actualizar existentes)
+POST {{baseUrl}}/notes/import
+Content-Type: {{contentType}}
+
+{
+  "jsonData": "[{\"id\":\"1\",\"title\":\"Nota actualizada\",\"content\":\"Contenido actualizado\",\"createdAt\":\"2025-01-01T00:00:00.000Z\",\"updatedAt\":\"2025-02-05T00:00:00.000Z\",\"tags\":[\"tag1\",\"tag5\"]},{\"id\":\"import-3\",\"title\":\"Nota importada 3\",\"content\":\"Contenido importado 3\",\"createdAt\":\"2025-02-03T00:00:00.000Z\",\"updatedAt\":\"2025-02-03T00:00:00.000Z\",\"tags\":[\"tag3\"]}]",
+  "mode": "UPDATE"
+}

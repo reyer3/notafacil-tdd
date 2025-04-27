@@ -1,3 +1,8 @@
+import * as dotenv from 'dotenv';
+import path from 'path';
+
+// Cargar .env desde la raíz del proyecto
+dotenv.config({ path: path.resolve(__dirname, '../../../../.env') });
 import { DataSource, DataSourceOptions } from 'typeorm';
 import { NoteModel } from '../models/NoteModel';
 import { TagModel } from '../models/TagModel';
@@ -7,15 +12,22 @@ const entities = [NoteModel, TagModel];
 
 // Configuración base para PostgreSQL
 const getBaseConfig = (env: string): Partial<DataSourceOptions> => {
+  console.log('DB Connection:', {
+    host: process.env.DB_HOST,
+    port: parseInt(process.env.DB_PORT || '5432'),
+    database: env === 'test' ? process.env.TEST_DB_NAME : process.env.DB_NAME
+  });
+
   return {
     type: 'postgres' as const,
     host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5433'),
+    port: parseInt(process.env.DB_PORT || '5432'),
     username: process.env.DB_USERNAME || 'postgres',
     password: process.env.DB_PASSWORD || 'postgres',
     entities,
-    synchronize: env !== 'production', // Solo sincronizar en no-producción
-    logging: env === 'development'
+    synchronize: env !== 'production',
+    logging: env === 'development',
+    ssl: process.env.SSLMODE === 'require' ? { rejectUnauthorized: false } : false
   };
 };
 
