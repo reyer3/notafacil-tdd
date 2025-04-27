@@ -1,4 +1,4 @@
-import { Note } from './Note';
+import { Note } from '@domain/entities/Note';
 
 describe('Note Entity', () => {
   // Test de creación exitosa

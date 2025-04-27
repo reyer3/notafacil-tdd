@@ -1,8 +1,7 @@
 import { Repository } from 'typeorm';
-import { Note } from '../../../domain/entities/Note';
-import { NoteModel } from '../models/NoteModel';
-import { TagModel } from '../models/TagModel';
-import { NoteRepositoryImpl } from './NoteRepositoryImpl';
+import { Note } from '@domain/entities/Note';
+import { NoteModel } from '@infrastructure/orm/models/NoteModel';
+import { NoteRepositoryImpl } from '@infrastructure/orm/repositories/NoteRepositoryImpl';
 
 // Mock de Repository<NoteModel> de TypeORM
 class MockRepository<T> {

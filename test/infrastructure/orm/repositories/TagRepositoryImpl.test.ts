@@ -1,7 +1,7 @@
 import { Repository } from 'typeorm';
-import { Tag } from '../../../domain/entities/Tag';
-import { TagModel } from '../models/TagModel';
-import { TagRepositoryImpl } from './TagRepositoryImpl';
+import { Tag } from '@domain/entities/Tag';
+import { TagModel } from '@infrastructure/orm/models/TagModel';
+import { TagRepositoryImpl } from '@infrastructure/orm/repositories/TagRepositoryImpl';
 
 // Mock de Repository<TagModel> de TypeORM
 class MockRepository<T> {

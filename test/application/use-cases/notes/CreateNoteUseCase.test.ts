@@ -1,6 +1,6 @@
-import { Note } from '../../../domain/entities/Note';
-import { NoteRepository } from '../../../domain/repositories/NoteRepository';
-import { CreateNoteUseCase } from './CreateNoteUseCase';
+import { Note } from '@domain/entities/Note';
+import { NoteRepository } from '@domain/repositories/NoteRepository';
+import {CreateNoteUseCase} from "@application/use-cases/notes/CreateNoteUseCase";
 
 // Mock del repositorio
 class MockNoteRepository implements NoteRepository {

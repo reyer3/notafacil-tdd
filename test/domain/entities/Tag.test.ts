@@ -1,4 +1,4 @@
-import { Tag } from './Tag';
+import { Tag } from '@domain/entities/Tag';
 
 describe('Tag Entity', () => {
   // Test de creación exitosa
