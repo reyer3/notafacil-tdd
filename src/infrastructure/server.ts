@@ -1,3 +1,4 @@
+import '../module-alias';
 import * as dotenv from 'dotenv';
 import path from 'path';
 import express, { Request, Response, NextFunction } from 'express';
